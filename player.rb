@@ -46,19 +46,25 @@ class Player
     return false
   end
   
+  def walk_or_attack!
+    if warrior.feel(body[:direction]).empty?
+      warrior.walk!(body[:direction])
+      return :walk
+    else
+      warrior.attack!(body[:direction])
+      return :attack
+    end
+  end
+  
   def fight!
     @fight_state ||= :moving
     
     case @fight_state
     when :moving
-      if warrior.feel(body[:direction]).empty?
-        warrior.walk!(body[:direction])
-      else
-        warrior.attack!(body[:direction])
-        @fight_state = :attacking
-      end
+      @fight_state = walk_or_attack! == :attack ? :attacking : @fight_state
       return true
     when :attacking
+      # attack_or_walk!
       if warrior.feel(body[:direction]).empty?
         warrior.walk!(Direction.opposite_of(body[:direction]))
         @fight_state = :resting
@@ -67,6 +73,7 @@ class Player
       end
       return true
     when :resting
+      # retreat_or_rest_or_walk!
       if body[:health][1] < 20
         safe_position? ? warrior.rest! : warrior.walk!(Direction.opposite_of(body[:direction]))
       else
