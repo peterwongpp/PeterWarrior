@@ -7,7 +7,6 @@ class Player
   attr_accessor :body
   
   def initialize
-    @state = :moving
     @body = {
       :health => [nil, 20],
       :direction => :backward
@@ -29,43 +28,63 @@ class Player
   end
   
   def encountered_wall!
-    body[:direction] = Direction.opposite_of(body[:direction])
-    warrior.walk!(body[:direction])
+    if warrior.feel(body[:direction]).wall?
+      body[:direction] = Direction.opposite_of(body[:direction])
+      warrior.walk!(body[:direction])
+      return true
+    end
+    
+    return false
+  end
+  
+  def encountered_captive!
+    if warrior.feel(body[:direction]).captive?
+      warrior.rescue!(body[:direction])
+      return true
+    end
+    
+    return false
+  end
+  
+  def fight!
+    @fight_state ||= :moving
+    
+    case @fight_state
+    when :moving
+      if warrior.feel(body[:direction]).empty?
+        warrior.walk!(body[:direction])
+      else
+        warrior.attack!(body[:direction])
+        @fight_state = :attacking
+      end
+      return true
+    when :attacking
+      if warrior.feel(body[:direction]).empty?
+        warrior.walk!(Direction.opposite_of(body[:direction]))
+        @fight_state = :resting
+      else
+        warrior.attack!(body[:direction])
+      end
+      return true
+    when :resting
+      if body[:health][1] < 20
+        safe_position? ? warrior.rest! : warrior.walk!(Direction.opposite_of(body[:direction]))
+      else
+        warrior.walk!(body[:direction])
+        @fight_state = :moving
+      end
+      return true
+    end
+    
+    return false
   end
   
   def play_turn(warrior)
     self_check(warrior)
     
-    if warrior.feel(body[:direction]).wall?
-      encountered_wall!
-    elsif warrior.feel(body[:direction]).captive?
-      warrior.rescue!(body[:direction])
-    else
-      
-      case @state
-      when :moving
-        if warrior.feel(body[:direction]).enemy?
-          warrior.attack!(body[:direction])
-          @state = :attacking
-        else
-          warrior.walk!(body[:direction])
-        end
-      when :attacking
-        if warrior.feel(body[:direction]).enemy?
-          warrior.attack!(body[:direction])
-        else
-          warrior.walk!(Direction.opposite_of(body[:direction]))
-          @state = :resting
-        end
-      when :resting
-        if body[:health][1] < 20
-          safe_position? ? warrior.rest! : warrior.walk!(Direction.opposite_of(body[:direction]))
-        else
-          warrior.walk!(body[:direction])
-          @state = :moving
-        end
-      end
-    end
+    return if encountered_wall!
+    return if encountered_captive!
+    return if fight!
   end
 end
 
